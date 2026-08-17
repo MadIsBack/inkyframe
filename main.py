@@ -1,18 +1,21 @@
 """Haupt-Skript fuer den Inky Frame 7.3".
 
-Zyklischer Ablauf:
-  1. WLAN verbinden + Zeit syncen
-  2. Wetter (heute+morgen, 3h-Slots) holen
-  3. Kalender (Google + Nextcloud) mergen -> 7 Tage Termine + 30T Geburtstage
-  4. Shelly EM3: zwei Module lesen, Differenz + Historie (state.json)
-  5. Dashboard zeichnen + updaten
-  6. Schlafen legen
+Zwei Takt-Zyklen:
+  - SHelly-Schlag (jeder Wake, kurzes Intervall): nur Shelly lesen,
+    Historie pflegen, Display neu zeichnen. Wetter/Kalender aus Cache.
+  - Voll-Schlag (alle FULL_INTERVAL_MIN): Wetter + Kalender neu holen,
+    Cache aktualisieren, Timestamp setzen.
 
-Shelly-Daten werden oefter aktualisiert: das Display wird bei jedem Wake
-neu gezeichnet, aber Wetter/Kalender nur, wenn ihr Intervall abgelaufen ist
-(getrennte Zaehler via state.json).
+Ablauf je Wake:
+  1. WLAN verbinden + Zeit syncen
+  2. Entscheiden: Voll-Refresh oder Shelly-only (anhand last_full_ts)
+  3. Wetter/Kalender ggf. holen, sonst aus state.json-Cache
+  4. Shelly lesen + Historie pflegen
+  5. Dashboard zeichnen + updaten
+  6. Schlafen legen (kurzes Intervall)
 """
 import gc
+import time
 import lib.network as net
 import lib.weather as weather
 import lib.calendar_ics as cal
@@ -21,8 +24,8 @@ import lib.state as state
 import lib.display as display
 
 # Intervalle (Minuten)
-SHELLY_INTERVAL_MIN = 5     # Shelly alle 5 Min
-FULL_INTERVAL_MIN = 30      # Wetter+Kalender+Vollzeichnung alle 30 Min
+SHELLY_INTERVAL_MIN = 5     # Shelly + Neuzeichnen alle 5 Min
+FULL_INTERVAL_MIN = 30      # Wetter+Kalender alle 30 Min neu holen
 
 
 def _load_secrets():
@@ -46,7 +49,7 @@ def _load_secrets():
         print("secrets.py fehlt / unvollstaendig")
         return {"ssid": "", "psk": "", "lat": None, "lon": None,
                 "ics_google": "", "ics_next": "", "shelly_a": "", "shelly_b": "",
-                "shelly_token": "", "interval": FULL_INTERVAL_MIN}
+                "shelly_token": "", "interval": SHELLY_INTERVAL_MIN}
 
 
 def _fetch_weather(cfg):
@@ -83,6 +86,13 @@ def _fetch_shelly(cfg):
         return None
 
 
+def _need_full_refresh():
+    """True, wenn Wetter+Kalender neu geholt werden sollen."""
+    now = time.time()
+    last = state.get_last_full_ts()
+    return (now - last) >= FULL_INTERVAL_MIN * 60
+
+
 def run():
     cfg = _load_secrets()
 
@@ -95,27 +105,38 @@ def run():
     except Exception as e:
         print("Zeit-Sync fehlgeschlagen:", e)
 
-    # 2-4. Daten holen (vor Graphics-Instanz wegen RAM)
-    weather_data = _fetch_weather(cfg)
-    gc.collect()
-    next7, birthdays = _fetch_calendar(cfg)
-    gc.collect()
+    # 2. Wetter/Kalender: neu oder aus Cache
+    if _need_full_refresh():
+        weather_data = _fetch_weather(cfg)
+        gc.collect()
+        state.set_cache("weather", weather_data)
+        next7, birthdays = _fetch_calendar(cfg)
+        gc.collect()
+        state.set_cache("calendar", {"next7": next7, "birthdays": birthdays})
+        state.set_last_full_ts(time.time())
+        print("Voll-Refresh durchgefuehrt")
+    else:
+        weather_data = state.get_cache("weather")
+        cal_cache = state.get_cache("calendar") or {}
+        next7 = cal_cache.get("next7", [])
+        birthdays = cal_cache.get("birthdays", [])
+        print("Shelly-Schlag (Cache fuer Wetter/Kalender)")
+
+    # 3. Shelly immer lesen + Historie pflegen
     shelly_res = _fetch_shelly(cfg)
     gc.collect()
-
-    # Shelly-Historie pflegen
     if shelly_res and shelly_res.get("diff") is not None:
         state.append_shelly_sample(shelly_res["diff"])
     shelly_history = state.get_shelly_history()
     shelly_current = shelly_res["diff"] if (shelly_res and shelly_res.get("ok")) else None
 
-    # 5. Zeichnen
+    # 4. Zeichnen
     try:
         display.render(weather_data, next7, birthdays, shelly_history, shelly_current)
     except Exception as e:
         print("Display-Fehler:", e)
 
-    # 6. Schlafen
+    # 5. Schlafen (kurzes Intervall, damit Shelly oft aktualisiert)
     gc.collect()
     try:
         net.sleep_for(cfg.get("interval") or SHELLY_INTERVAL_MIN)

@@ -60,3 +60,33 @@ def clear():
         os.remove(STATE_FILE)
     except OSError:
         pass
+
+
+# ---- Cache fuer Wetter / Kalender (fuer zwei Takt-Zyklen) ----
+
+
+def get_cache(key):
+    """Liefert einen gecachten Wert fuer `key` (dict) oder None."""
+    return _load().get("cache", {}).get(key)
+
+
+def set_cache(key, value):
+    """Speichert `value` unter `key` im Cache (in state.json)."""
+    data = _load()
+    cache = data.get("cache", {})
+    cache[key] = value
+    data["cache"] = cache
+    _save(data)
+
+
+def get_last_full_ts():
+    """Zeitstempel (epoch) des letzten Voll-Refresh (Wetter+Kalender)."""
+    v = _load().get("last_full_ts")
+    return float(v) if v is not None else 0.0
+
+
+def set_last_full_ts(ts):
+    """Setzt den Zeitstempel des letzten Voll-Refresh."""
+    data = _load()
+    data["last_full_ts"] = float(ts)
+    _save(data)

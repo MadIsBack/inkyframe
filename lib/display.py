@@ -10,6 +10,7 @@ Regionen:
 Farben: Wetter=BLUE, Kalender=RED, Geburtstage=GREEN/ORANGE, Chart=YELLOW.
 """
 from inky_frame import BLACK, WHITE, GREEN, BLUE, RED, YELLOW, ORANGE
+import icons
 
 # Spalten-X-Grenzen
 COL_WX = 0
@@ -58,12 +59,15 @@ def _draw_weather(graphics, weather):
         graphics.text("nicht verfuegbar", x + 10, y, 240, 2)
         return
 
-    # Aktuell gross
+    # Aktuell gross: Icon + Temperatur + Text
     temp = weather.get("current_temp")
+    cur_cat = _category_for_code(weather.get("current_code"))
     if temp is not None:
         graphics.set_pen(BLACK)
-        graphics.text("{:.1f}C".format(temp), x + 10, y, 250, 4)
+        graphics.text("{:.1f}C".format(temp), x + 60, y, 250, 4)
+    # Icon links neben der Temperatur
     graphics.set_pen(BLUE)
+    icons.draw_by_category(graphics, cur_cat, x + 4, y - 4, 50)
     graphics.text(weather.get("current_text", ""), x + 110, y + 8, 140, 2)
     wind = weather.get("current_wind")
     if wind is not None:
@@ -75,13 +79,32 @@ def _draw_weather(graphics, weather):
     graphics.text("Heute", x + 10, y, 250, 2)
     y += 18
     _draw_slots(graphics, weather.get("today", []), x + 10, y, 250)
-    y += 70
+    y += 90
 
     # 3h-Slots morgen
     graphics.set_pen(BLACK)
     graphics.text("Morgen", x + 10, y, 250, 2)
     y += 18
     _draw_slots(graphics, weather.get("tomorrow", []), x + 10, y, 250)
+
+
+def _category_for_code(code):
+    """Liefert die WMO-Kategorie (-> Icon) fuer einen Code."""
+    try:
+        from lib.weather import describe
+    except Exception:
+        try:
+            import weather as describe_mod
+            describe = describe_mod.describe
+        except Exception:
+            return "overcast"
+    if code is None:
+        return "overcast"
+    _text, cat = describe(code)
+    return cat
+
+
+SLOT_ICON_SIZE = 22
 
 
 def _draw_slots(graphics, slots, x, y, w):
@@ -91,18 +114,26 @@ def _draw_slots(graphics, slots, x, y, w):
         return
     cols = min(len(slots), 8)
     cell_w = (w - 4) // max(cols, 1)
+    icon_sz = min(SLOT_ICON_SIZE, cell_w - 2)
     for i, s in enumerate(slots[:cols]):
         cx = x + i * cell_w
         graphics.set_pen(BLACK)
         graphics.text("{:02d}".format(s["hour"]), cx, y, cell_w, 2)
+        # Icon zentriert in der Zelle
         graphics.set_pen(BLUE)
+        ix = cx + (cell_w - icon_sz) // 2
+        icons.draw_by_category(graphics, _category_for_code(s.get("code")),
+                               ix, y + 14, icon_sz)
         if s.get("temp") is not None:
-            graphics.text("{:.0f}".format(s["temp"]), cx, y + 16, cell_w, 2)
+            graphics.set_pen(BLACK)
+            graphics.text("{:.0f}".format(s["temp"]), cx, y + 14 + icon_sz,
+                          cell_w, 2)
         # Regenwahrscheinlichkeit
         pop = s.get("pop")
         if pop is not None and pop > 0:
             graphics.set_pen(GREEN)
-            graphics.text("{}%".format(pop), cx, y + 32, cell_w, 1)
+            graphics.text("{}%".format(pop), cx, y + 14 + icon_sz + 16,
+                          cell_w, 1)
 
 
 def _draw_calendar(graphics, events):

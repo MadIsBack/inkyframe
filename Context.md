@@ -83,6 +83,17 @@ README.md            # Setup-Anleitung
 - [x] secrets.example.py um Google/Nextcloud/Shelly-Felder ergaenzt.
 - [x] Commit & Push.
 
+## Fortschritt (Sitzung 3)
+- [x] Wetter-Icons implementiert (lib/icons.py): Sonne, Wolke, Regen, Schnee,
+      Gewitter, Nebel, teilw. bewoelkt - als PicoGraphics-Primitive. Mock-getestet.
+- [x] Icons in Dashboard eingebaut (aktuelles Wetter + 3h-Slots).
+- [x] Zwei Takt-Zyklen in main.py:
+      - Shelly-Schlag (jeder Wake, 5 Min): Shelly lesen + Neuzeichnen,
+        Wetter/Kalender aus state.json-Cache.
+      - Voll-Schlag (alle 30 Min): Wetter+Kalender neu holen, Cache+ts updaten.
+- [x] state.py erweitert: Cache (weather/calendar) + last_full_ts, koexistiert
+      mit Shelly-Historie. CPython-getestet.
+
 ## Bekannte Einschraenkungen (Folge-Aufgaben)
 - ICS-Parser ignoriert Zeitzonenversatz (UTC `Z` / TZID) -> spaeter ausbauen.
 - Layout ist rudimentaer -> nach erstem Lauf auf dem Geraet verfeinern.
