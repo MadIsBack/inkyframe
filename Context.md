@@ -43,6 +43,19 @@ vermerkt und fortgeführt. Änderungen werden immer eingecheckt und gepusht.
 
 ## Projektstruktur
 ```
+main.py              # Einstieg: Wifi -> Wetter+Kalender+Shelly -> zeichnen -> sleep
+secrets.py           # WLAN, Lat/Lon, ICS_URL_GOOGLE/NEXTCLOUD, SHELLY_IPs (gitignored)
+secrets.example.py   # Vorlage
+lib/
+  weather.py         # Open-Meteo, 3h-Slots heute+morgen, WMO-Code-Mapping (DE)
+  calendar_ics.py    # ICS-Parser mit Zeitzonen + Merge/Dedup + Geburtstage (RRULE)
+  shelly.py          # Zwei Shelly EM3, Autodetection Gen1/Gen2, Differenz
+  state.py           # Historie der Shelly-Differenz (state.json)
+  display.py         # PicoGraphics-Dashboard-Layout 7.3"
+  network.py         # WiFi-Connect, RTC-Sync, sleep_for-Helper
+Context.md           # Diese Datei (Anweisungen + Fortschritt)
+README.md            # Setup-Anleitung
+```
 main.py              # Einstieg: Wifi -> Daten holen -> zeichnen -> sleep
 secrets.py           # WIFI_SSID, WIFI_PASSWORD, LOCATION, ICS_URL (NICHT committen! -> .gitignore)
 lib/
@@ -56,14 +69,19 @@ README.md            # Setup-Anleitung
 
 ## Fortschritt
 - [x] Repo pimoroni/inky-frame gelesen, Patterns verstanden.
-- [x] Context.md angelegt.
+- [x] Context.md angelegt + vollstaendige Anforderungen dokumentiert.
 - [x] Projektstruktur + Module angelegt (main.py, lib/, secrets-Template).
-- [x] Wetter-Modul (Open-Meteo, WMO-Mapping) + CPython-Test.
-- [x] Kalender-Modul (eigener ICS-Parser) + CPython-Test.
-- [x] Display/Layout-Modul (PicoGraphics, 7.3").
-- [x] main.py verdrahtet (Wifi -> Zeit -> Daten -> zeichnen -> sleep).
-- [x] README + Setup-Anleitung.
-- [x] Commit & Push (erster Stand).
+- [x] Wetter-Modul: Open-Meteo, 3h-Slots heute+morgen, WMO-Mapping (DE). Live getestet.
+- [x] Kalender-Modul: ICS-Parser MIT Zeitzonenkonvertierung (UTC Z / TZID),
+      Merge+Dedup zweier Feeds, Geburtstage (RRULE FREQ=YEARLY). CPython-getestet.
+- [x] Shelly-Modul: Autodetection Gen1 (REST /status) + Gen2/Pro 3EM (RPC
+      EM.GetStatus -> total_act_power), zwei Module, Differenz A-B. Mock-getestet.
+- [x] state.py: Historie der Shelly-Differenz puffern (state.json, MAX 288).
+- [x] Display/Layout-Modul: Dashboard (Wetter links, 7T Kalender Mitte,
+      30T Geburtstage rechts, Shelly-Chart unten). Farben pro Bereich.
+- [x] main.py: alle Quellen verdrahten, Historie pflegen, zeichnen, sleep.
+- [x] secrets.example.py um Google/Nextcloud/Shelly-Felder ergaenzt.
+- [x] Commit & Push.
 
 ## Bekannte Einschraenkungen (Folge-Aufgaben)
 - ICS-Parser ignoriert Zeitzonenversatz (UTC `Z` / TZID) -> spaeter ausbauen.

@@ -1,85 +1,78 @@
-# InkyFrame – Wetter & Termine
+# InkyFrame – Wetter, Kalender & Shelly-Dashboard
 
-Anzeige von **Wetterdaten** und **Terminen** auf einem
-[Pimoroni Inky Frame 7,3"](https://shop.pimoroni.com/products/inky-frame-7-3)
-(Pico W / Pico 2 W Aboard). Geschrieben in **MicroPython**.
+Dashboard auf einem [Pimoroni Inky Frame 7,3"](https://shop.pimoroni.com/products/inky-frame-7-3)
+(Pico W / Pico 2 W Aboard), geschrieben in **MicroPython**.
 
 ## Funktionen
-- **Wetter:** Open-Meteo (kein API-Key nötig) – aktuelle Temperatur, Beschreibung
-  (WMO-Code-Mapping auf Deutsch), Wind, Tages-Max/Min.
-- **Termine:** öffentlicher ICS/iCal-Feed (Nextcloud, Google Calendar, …) –
-  die nächsten Termine ab jetzt.
-- **Layout:** Wetter links, Termine rechts, Header mit Datum/Uhrzeit.
-- **Stromsparen:** Aktualisierung per RTC-Timer (Batteriebetrieb) bzw.
-  `time.sleep` (USB-Betrieb).
+- **Wetter:** Open-Meteo (kein API-Key) – aktueller Wert + 3h-Slots für
+  heute und morgen (Temperatur, WMO-Code als deutscher Text, Regenwahrscheinlichkeit).
+- **Kalender:** zwei ICS-Feeds (Google + Nextcloud) parallel, gemergt + dedup;
+  nächste 7 Tage Termine; Geburtstage der nächsten 30 Tage (RRULE FREQ=YEARLY).
+  Zeitzonenkonvertierung (UTC `Z` / TZID).
+- **Shelly EM3:** zwei Module auslesen (Autodetection Gen1 REST + Gen2/Pro 3EM
+  RPC), Differenz berechnen, Verlauf als Liniendiagramm (Historie in `state.json`).
+- **Dashboard-Layout:** Wetter links, 7-Tage-Kalender Mitte, Geburtstage rechts,
+  Shelly-Chart unten. Farb-Akzente pro Bereich.
 
 ## Setup
 
-### 1. Firmware auf den Inky Frame
-Lade die aktuelle `-with-examples`-Firmware von
-https://github.com/pimoroni/inky-frame/releases/latest als `.uf2` herunter
-und flashe sie (BOOTSEL + Reset, Datei auf `RP2350`-Laufwerk ziehen).
-Details: [Pimoroni README](https://github.com/pimoroni/inky-frame).
+### 1. Firmware
+Aktuelle `-with-examples`-Firmware von
+https://github.com/pimoroni/inky-frame/releases/latest als `.uf2` flashen
+(BOOTSEL + Reset, Datei auf `RP2350`-Laufwerk ziehen).
 
-### 2. Dateien übertragen
-Lege diese Dateien per [Thonny](https://thonny.org) auf den Frame:
-
+### 2. Dateien übertragen (Thonny)
 ```
 main.py
-secrets.py        # selbst anlegen (siehe unten)
+secrets.py          # selbst anlegen (siehe unten / secrets.example.py)
 lib/network.py
 lib/weather.py
 lib/calendar_ics.py
+lib/shelly.py
+lib/state.py
 lib/display.py
 ```
 
 ### 3. secrets.py anlegen
-Erstelle lokal eine `secrets.py` (nicht committen!) mit deinen Werten:
-
+Kopiere `secrets.example.py` → `secrets.py` (wird NICHT committen) und trage:
 ```python
-WIFI_SSID = "DEIN_WLAN"
-WIFI_PASSWORD = "DEIN_PASSWORT"
-
-# Standort für Open-Meteo (Breitengrad, Längengrad)
+WIFI_SSID = "..."
+WIFI_PASSWORD = "..."
 LATITUDE = 52.52
 LONGITUDE = 13.405
-
-# Öffentliche .ics-URL deines Kalenders
-ICS_URL = "https://.../calendar.ics"
-
-UPDATE_INTERVAL_MINUTES = 30
+ICS_URL_GOOGLE = "https://calendar.google.com/calendar/ical/.../basic.ics"
+ICS_URL_NEXTCLOUD = "https://cloud.example.org/remote.php/dav/public-calendars/<id>/?export"
+SHELLY_EM3_IP_A = "192.168.1.10"
+SHELLY_EM3_IP_B = "192.168.1.11"
+SHELLY_EM3_TOKEN = ""   # nur bei aktiviertem Auth-Schutz
+UPDATE_INTERVAL_MINUTES = 5
 ```
 
 ### 4. Starten
-`main.py` läuft automatisch (oder via Thonny "Run"). Beim ersten Lauf:
-WLAN verbinden → Zeit via NTP syncen → Wetter + Termine holen → anzeigen →
-schlafen bis zum nächsten Intervall.
+`main.py` läuft automatisch: WLAN → Zeit sync → alle Quellen → zeichnen → sleep.
+
+## Shelly-Hinweise
+- **Autodetection:** zuerst Gen2 (`/rpc/EM.GetStatus?id=0` → `total_act_power`),
+  bei Fehlschlag Gen1 (`/status` → `emeters[].power` / `total_power`).
+- Vorzeichen: positiv = Bezug, negativ = Einspeisung.
+- Differenz = Leistung A − Leistung B.
 
 ## Struktur
 ```
 main.py              Einstieg: Wifi → Daten → zeichnen → sleep
 secrets.py           Konfiguration (gitignored)
 lib/network.py       WiFi, RTC, sleep_for
-lib/weather.py       Open-Meteo + WMO-Code-Mapping
-lib/calendar_ics.py  Minimaler ICS-Parser
-lib/display.py       PicoGraphics-Layout für 7.3"
+lib/weather.py       Open-Meteo, 3h-Slots heute+morgen
+lib/calendar_ics.py  ICS-Parser + Zeitzonen + Merge + Geburtstage
+lib/shelly.py        Zwei EM3, Autodetection Gen1/Gen2, Differenz
+lib/state.py         Historie der Shelly-Differenz (state.json)
+lib/display.py       PicoGraphics-Dashboard 7.3"
 Context.md           Anweisungen & Fortschritt
 ```
 
-## Hinweise / bekannte Einschränkungen
-- **Zeitzonen:** Der ICS-Parser ignoriert aktuell den Zeitzonenversatz
-  (UTC `Z` und `TZID`). Termine werden in der im Feed angegebenen Uhrzeit
-  gezeigt. Für eine korrekte Konvertierung ist ein späterer Ausbau vorgesehen.
-- **Layout:** Erstes rudimentäres Layout; wird nach erstem Lauf auf dem Gerät
-  verfeinert.
-- **Display-Variante:** `lib/display.py` nutzt `DISPLAY_INKY_FRAME_7`
-  (bzw. `DISPLAY_INKY_FRAME` als Fallback). Für die Spectra-Variante
-  `DISPLAY_INKY_FRAME_SPECTRA_7` anpassen.
-
 ## Entwicklung / Tests
-Die Logik-Module (`weather.py`, `calendar_ics.py`) sind so geschrieben, dass
-sie auch unter normalem CPython (für lokale Tests ohne Hardware) laufen:
-
+Logik-Module sind auch unter normalem CPython testbar:
 ```bash
 python3 -c "import lib.weather as w; print(w.describe(61))"
+python3 -m py_compile lib/*.py main.py
 ```
