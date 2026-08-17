@@ -1,4 +1,4 @@
-# secrets.example.py – Vorlage. Kopiere diese Datei nach secrets.py und trage deine Werte ein.
+# secrets.example.py – Vorlage. Kopiere nach secrets.py und trage deine Werte ein.
 # secrets.py wird NICHT committen (in .gitignore).
 
 # --- WiFi ---
@@ -6,14 +6,20 @@ WIFI_SSID = ""
 WIFI_PASSWORD = ""
 
 # --- Standort fuer Open-Meteo (Breitengrad, Laengengrad) ---
-# Beispiel Berlin: 52.52, 13.405
 LATITUDE = 52.52
 LONGITUDE = 13.405
 
-# --- Kalender (oeffentliche .ics URL) ---
-# z.B. Nextcloud: https://cloud.example.org/remote.php/dav/public-calendars/<id>/?export
-# oder Google Calendar: Settings -> "Secret address in iCal format"
-ICS_URL = ""
+# --- Kalender (zwei Quellen) ---
+# Google Calendar: Settings -> "Secret address in iCal format"
+ICS_URL_GOOGLE = ""
+# Nextcloud: https://cloud.example.org/remote.php/dav/public-calendars/<id>/?export
+ICS_URL_NEXTCLOUD = ""
+
+# --- Shelly EM3 (zwei Module) ---
+SHELLY_EM3_IP_A = ""
+SHELLY_EM3_IP_B = ""
+# Optional: API-Token bei aktiviertem Auth-Schutz
+SHELLY_EM3_TOKEN = ""
 
 # --- Aktualisierungsintervall in Minuten ---
 UPDATE_INTERVAL_MINUTES = 30

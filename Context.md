@@ -75,3 +75,87 @@ README.md            # Setup-Anleitung
 - Konkrete ICS-URL und Breitengrad/Längengrad für den Standort (in `secrets.py`).
 - Farb-Schema / Layout-Vorlieben (folgt nach erstem Lauf auf dem Gerät).
 - Battery-Betrieb vs. USB-Steckbetrieb (beeinflusst Sleep-Logik; aktuell beides unterstützt).
+
+---
+
+# Anforderungen (vollstaendig, fuer spaetere Sitzungen)
+
+> Die bisherigen Module (`lib/weather.py`, `lib/calendar_ics.py`, `lib/display.py`,
+> `lib/network.py`, `main.py`) dienen nur der **Veranschaulichung / als Startpunkt**.
+> Sie werden im Laufe der weiteren Sitzungen durch die echte Implementierung der
+> hier dokumentierten Anforderungen ersetzt/erweitert. Diese Sektion enthaelt die
+> verbindliche Aufgabenliste fuer kommende Sitzungen.
+
+## 1. WLAN-Anbindung
+- Verbindung des Inky Frame mit dem lokalen WLAN-Netzwerk (Credentials in
+  `secrets.py`: `WIFI_SSID`, `WIFI_PASSWORD`).
+- Robuster Connect mit Retry/Timeout, Network-LED-Feedback (Pimoroni-Pattern).
+
+## 2. Wetter
+- Quelle: Open-Meteo (kein API-Key), Standort via `LATITUDE`/`LONGITUDE` in
+  `secrets.py`.
+- **Zeitraum:** aktueller Tag + naechster Tag.
+- **Aufloesung:** 3-Stunden-Zyklus (stündliche/hourly Forecast, aggregiert auf
+  3h-Schritte) fuer beide Tage.
+- Darzustellende Werte je 3h-Slot: Temperatur, Wettercode (WMO) -> Text/Icon,
+  ggf. Niederschlag/Wind.
+- Mapping WMO-Code -> deutscher Text + Icon (Icons als nachgezeichnete
+  PicoGraphics-Symbole, siehe Anzeige).
+
+## 3. Kalender
+- **Zwei Quellen parallel:**
+  - **Google Calendar** (oeffentliche ICS-URL bzw. "Secret address in iCal format").
+  - **Nextcloud** (oeffentlicher CalDAV-Export: `.../remote.php/dav/public-calendars/<id>/?export`).
+- Beide URLs in `secrets.py` hinterlegen (z.B. `ICS_URL_GOOGLE`, `ICS_URL_NEXTCLOUD`).
+- Eigener ICS-Parser (keine externe Abhaengigkeit), beide Feeds mergen + dedup.
+- **Zeitzonenversatz (UTC `Z` / TZID)** korrekt konvertieren (bekannte
+  Einschraenkung im Start-Code -> MUSS ausgebaut werden).
+
+## 4. Shelly EM3 (zwei Module)
+- **Zwei Shelly 3EM-Messgeraete** auslesen (aktuelle Leistung).
+- Auslesen vermutlich via Shelly REST-API (HTTP GET, JSON) im lokalen Netz:
+  `http://<shelly-ip>/status` bzw. Gen2-Devices `/rpc/EM.GetStatus`.
+- IPs / Endpoints in `secrets.py` (`SHELLY_EM3_IP_A`, `SHELLY_EM3_IP_B`).
+- **Verrechnung:** Differenz der aktuellen Leistungen beider Module berechnen
+  (Leistung_A - Leistung_B; Vorzeichen/Bezug+Lieferung klaeren).
+- **Chart:** die Differenz als Verlauf anzeigen (Liniendiagramm in PicoGraphics).
+- => fuer den Verlauf muessen Historien-Werte gepuffert werden. Optionen:
+  - Zwischenspeicher in `state.json` auf dem Geraet, oder
+  - Shelly liefert selbst Verlaufsdaten (Pruefen: `/rpc/EM.GetStatus` /
+    `/emeter/0` Historie); bevorzugt wenn verfuegbar.
+- Klaren: Anzeige aktueller Wert + Trend, oder Zeitreihe? -> offene Frage.
+
+## 5. Anzeige (Layout, attraktiv)
+- **Anzeige-Flaeche 800x480**, 7 Farben + Dithering.
+- Ziel: eine **ansprechende Dashboard-Optik** (klare Typo, Farb-Akzente,
+  Trennlinien, ggf. Hintergrund-Dither).
+- **Elemente gleichzeitig auf dem Screen:**
+  1. **Wetter** (aktueller Tag + naechster Tag, 3h-Zyklus, mit Icons).
+  2. **Naechste 7 Tage aus dem Kalender** (Termine der kommenden 7 Tage).
+  3. **Geburtstage der naechsten 30 Tage**.
+  4. (zusatzlich) **Shelly-Differenz-Chart** (siehe 4).
+- Layout-Vorschlag fuer naechste Sitzung: 2-3 Spalten/Regionen, Header mit
+  Datum+Uhrzeit; Skizze vorab als ASCII oder direkte PicoGraphics-Implementierung.
+- Farb-Akzente: Wetter=BLUE, Kalender=RED, Geburtstage=GREEN/ORANGE, Chart=YELLOW.
+
+## 6. Daten/Geheimnisse
+- Alle geraete-/konto-spezifischen Werte in `secrets.py` (gitignored):
+  - WLAN, Lat/Lon, `ICS_URL_GOOGLE`, `ICS_URL_NEXTCLOUD`,
+    `SHELLY_EM3_IP_A`, `SHELLY_EM3_IP_B`.
+- `secrets.example.py` als Vorlage pflegen.
+
+## 7. Ablauf / Update-Intervall
+- Zyklischer Ablauf: WLAN -> Zeit sync -> alle Datenquellen holen ->
+  zeichnen -> sleep -> wiederholen.
+- Update-Intervall in `secrets.py` (`UPDATE_INTERVAL_MINUTES`).
+- Shelly-Differenz-Chart evtl. hoeherfrequent als Wetter/Kalender -> ggf.
+  untersch. Intervalle pruefen (zwei Schlaf-Zyklen?).
+
+## Offene Fragen (vor Implementierung zu klaeren)
+1. Shelly-Differenz: Bezug vs. Lieferung? Was genau soll der Chart zeigen
+   (aktueller Wert, Trend, Zeitreihe ueber welchen Zeitraum)?
+2. Shelly-Historie: Geraet liefert selbst Verlauf, oder puffern wir selbst?
+3. Shelly-Generation (Gen1 REST vs. Gen2 RPC) der beiden Module?
+4. Layout-Prioritaet/Skizze abnehmen, bevor implementiert wird.
+5. Geburtstage: eigene Kalenderquelle oder aus den ICS-Feeds filtern (nach
+   wiederkehrenden Ereignissen / SUMMARY-Pattern)?
