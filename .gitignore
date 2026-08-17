@@ -1,0 +1,8 @@
+# Gerätespezifische / generierte Dateien
+secrets.py
+*.pyc
+__pycache__/
+.DS_Store
+
+# Lokale Test-Artefakte
+*.log
